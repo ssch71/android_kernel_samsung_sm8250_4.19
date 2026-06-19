@@ -21,7 +21,6 @@ jobs:
         sudo apt update
         sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev bison flex
 
-
     - name: 3. 커널 소스 다운로드 (현재 레포지토리 체크아웃)
       uses: actions/checkout@v4
       with:
