@@ -1,7 +1,7 @@
 name: Tab S7 Terracotta KernelSU Build
 
 on:
-  workflow_dispatch: # 깃허브 웹에서 수동으로 빌드 버튼을 누를 때 실행
+  workflow_dispatch: # 깃허브 웹 Actions 탭에서 수동으로 빌드 버튼을 누를 때 실행
 
 jobs:
   kernel-build:
@@ -26,11 +26,10 @@ jobs:
       with:
         fetch-depth: 1 # 용량 절약을 위해 최신 커밋만 땡겨옴
 
-    - name: 4. AOSP Clang 툴체인 다운로드 (커널 4.19 호환 r536225 계열 대체 표준)
+    - name: 4. AOSP Clang 툴체인 다운로드 (커널 4.19 호환 r522817 계열)
       run: |
         mkdir -p $GITHUB_WORKSPACE/clang
         cd $GITHUB_WORKSPACE/clang
-        # 구글 AOSP 공식 Clang 19 프리빌트 바이너리 다운로드
         wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
         tar -xf clang-r522817.tar.gz
         rm -f clang-r522817.tar.gz
@@ -77,7 +76,7 @@ jobs:
         
         make $DEFCONFIG_NAME
         
-        # 2코어로 안전하고 램 오버 없이 컴파일 수행
+        # 가상 머신 사양에 맞춰 2코어로 안전하게 컴파일 수행
         make -j2
 
     - name: 8. 빌드 완료된 커널 아티팩트 업로드
