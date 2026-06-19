@@ -19,7 +19,6 @@ jobs:
     - name: 2. 빌드 필수 패키지 및 크로스 컴파일러(GCC) 설치
       run: |
         sudo apt update
-        # 4.19 커널 빌드에 필수적인 aarch64 gcc/g++ 크로스 컴파일러 패키지 추가
         sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev bison flex gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
     - name: 3. 커널 소스 다운로드 (현재 레포지토리 체크아웃)
@@ -45,22 +44,22 @@ jobs:
 
     - name: 6. 디바이스 defconfig 설정 튜닝 (KernelSU 및 Permissive 활성화)
       run: |
-        # 공백으로 파일 꼬이는 걸 막기 위해 탭 S7 내수/유럽 기본 파일 딱 하나만 정확하게 지정
-        DEFCONFIG_FILE="arch/arm64/configs/gts7l_eur_open_defconfig"
+        # 소스 트리 내부에서 gts7l이 포함된 실제 defconfig 파일명 검색
+        REAL_DEFCONFIG=$(find arch/arm64/configs/ -name "*gts7l*" | head -n 1)
         
-        # 만약 위 파일이 없으면 gts7l이 들어간 첫 번째 파일만 강제 매치
-        if [ ! -f "$DEFCONFIG_FILE" ]; then
-          DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*gts7l*" | head -n 1)
+        if [ -z "$REAL_DEFCONFIG" ]; then
+          echo "ERROR: gts7l이 들어간 defconfig 파일을 찾을 수 없습니다!"
+          exit 1
         fi
         
-        echo "최종 타겟팅 defconfig: $DEFCONFIG_FILE"
+        echo "실제 수정할 파일 경로: $REAL_DEFCONFIG"
         
         # KernelSU 구동을 위한 필수 커널 옵션 강제 주입
-        echo "CONFIG_KSU=y" >> $DEFCONFIG_FILE
-        echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG_FILE
+        echo "CONFIG_KSU=y" >> "$REAL_DEFCONFIG"
+        echo "CONFIG_OVERLAY_FS=y" >> "$REAL_DEFCONFIG"
         
         # One UI 8.x 부팅 억까 방지를 위한 SELinux Permissive 강제 주입
-        echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> $DEFCONFIG_FILE
+        echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> "$REAL_DEFCONFIG"
 
     - name: 7. 대망의 커널 컴파일 (스냅드래곤 865 타겟)
       run: |
@@ -71,8 +70,12 @@ jobs:
         export CC=clang
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
-        # defconfig 로드 단계를 수동 명시로 안전하게 수정
-        make gts7l_eur_open_defconfig
+        # 소스 트리에서 gts7l 관련 defconfig 파일 이름만 순수하게 추출
+        DEFCONFIG_NAME=$(find arch/arm64/configs/ -name "*gts7l*" -exec basename {} \; | head -n 1)
+        echo "컴파일 로드 타겟: $DEFCONFIG_NAME"
+        
+        # 동적으로 찾은 defconfig 로드
+        make "$DEFCONFIG_NAME"
         
         # 가상 머신 사양에 맞춰 2코어로 안전하게 컴파일 수행
         make -j2
