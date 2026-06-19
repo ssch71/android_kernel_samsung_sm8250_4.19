@@ -16,10 +16,11 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         df -h
 
-    - name: 2. 빌드 필수 패키지 설치
+        - name: 2. 빌드 필수 패키지 설치
       run: |
         sudo apt update
-        sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev layoutconvert bison flex
+        sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev bison flex
+
 
     - name: 3. 커널 소스 다운로드 (현재 레포지토리 체크아웃)
       uses: actions/checkout@v4
