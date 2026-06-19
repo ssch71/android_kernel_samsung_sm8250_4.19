@@ -1,0 +1,89 @@
+name: Tab S7 Terracotta KernelSU Build
+
+on:
+  workflow_dispatch: # 깃허브 웹에서 수동으로 빌드 버튼을 누를 때 실행
+
+jobs:
+  kernel-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. 러너 디스크 공간 강제 확보 (용량 부족 방지)
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        df -h
+
+    - name: 2. 빌드 필수 패키지 설치
+      run: |
+        sudo apt update
+        sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev layoutconvert bison flex
+
+    - name: 3. 커널 소스 다운로드 (현재 레포지토리 체크아웃)
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1 # 용량 절약을 위해 최신 커밋만 땡겨옴
+
+    - name: 4. AOSP Clang 툴체인 다운로드 (커널 4.19 호환 r536225 계열 대체 표준)
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/clang
+        cd $GITHUB_WORKSPACE/clang
+        # 구글 AOSP 공식 Clang 19 프리빌트 바이너리 다운로드
+        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
+        tar -xf clang-r522817.tar.gz
+        rm -f clang-r522817.tar.gz
+
+    - name: 5. KernelSU(또는 KernelSU-Next) 자동 주입 및 동기화
+      run: |
+        # 커널 소스 루트 폴더에서 KernelSU 환경 구성
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+        
+        # 만약 KernelSU-Next를 원한다면 아래 주석을 풀고 위 라인을 주석 처리해줘
+        # curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+
+    - name: 6. 디바이스 defconfig 설정 튜닝 (KernelSU 및 Permissive 활성화)
+      run: |
+        # 탭 S7 스냅865(kona) 자급제/내수용 기본 defconfig 파일 지정
+        DEFCONFIG_FILE="arch/arm64/configs/gts7l_eur_open_defconfig"
+        
+        # 파일이 존재하지 않을 경우를 대비해 gts7l_defconfig 계열 강제 서칭 및 수정
+        if [ ! -f "$DEFCONFIG_FILE" ]; then
+          DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*gts7l*" | head -n 1)
+        fi
+        
+        echo "수정 타겟 defconfig: $DEFCONFIG_FILE"
+        
+        # KernelSU 구동을 위한 필수 커널 옵션 강제 주입
+        echo "CONFIG_KSU=y" >> $DEFCONFIG_FILE
+        echo "CONFIG_OVERLAY_FS=y" >> $DEFCONFIG_FILE
+        
+        # One UI 8.x 부팅 억까 방지를 위한 SELinux Permissive 강제 주입
+        echo "CONFIG_SECURITY_SELINUX_DEVELOP=y" >> $DEFCONFIG_FILE
+
+    - name: 7. 대망의 커널 컴파일 (스냅드래곤 865 타겟)
+      run: |
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CC=clang
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        
+        # defconfig 로드
+        DEFCONFIG_NAME=$(find arch/arm64/configs/ -name "*gts7l*" -exec basename {} \+)
+        if [ -z "$DEFCONFIG_NAME" ]; then DEFCONFIG_NAME="gts7l_eur_open_defconfig"; fi
+        
+        make $DEFCONFIG_NAME
+        
+        # 2코어로 안전하고 램 오버 없이 컴파일 수행
+        make -j2
+
+    - name: 8. 빌드 완료된 커널 아티팩트 업로드
+      uses: actions/upload-artifact@v4
+      with:
+        name: Terracotta-KernelSU-Image
+        path: |
+          arch/arm64/boot/Image.gz
+          arch/arm64/boot/Image
