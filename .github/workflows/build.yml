@@ -16,10 +16,11 @@ jobs:
         sudo rm -rf "/usr/local/share/boost"
         df -h
 
-    - name: 2. 빌드 필수 패키지 설치
+    - name: 2. 빌드 필수 패키지 및 크로스 컴파일러(GCC) 설치
       run: |
         sudo apt update
-        sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev bison flex
+        # 4.19 커널 빌드에 필수적인 aarch64 gcc/g++ 크로스 컴파일러 패키지 추가
+        sudo apt install -y bc build-essential libncurses5-dev libssl-dev xz-utils binutils git ccache clang lld libelf-dev bison flex gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
     - name: 3. 커널 소스 다운로드 (현재 레포지토리 체크아웃)
       uses: actions/checkout@v4
@@ -44,15 +45,15 @@ jobs:
 
     - name: 6. 디바이스 defconfig 설정 튜닝 (KernelSU 및 Permissive 활성화)
       run: |
-        # 탭 S7 스냅865(kona) 자급제/내수용 기본 defconfig 파일 지정
+        # 공백으로 파일 꼬이는 걸 막기 위해 탭 S7 내수/유럽 기본 파일 딱 하나만 정확하게 지정
         DEFCONFIG_FILE="arch/arm64/configs/gts7l_eur_open_defconfig"
         
-        # 파일이 존재하지 않을 경우를 대비해 gts7l_defconfig 계열 강제 서칭 및 수정
+        # 만약 위 파일이 없으면 gts7l이 들어간 첫 번째 파일만 강제 매치
         if [ ! -f "$DEFCONFIG_FILE" ]; then
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*gts7l*" | head -n 1)
         fi
         
-        echo "수정 타겟 defconfig: $DEFCONFIG_FILE"
+        echo "최종 타겟팅 defconfig: $DEFCONFIG_FILE"
         
         # KernelSU 구동을 위한 필수 커널 옵션 강제 주입
         echo "CONFIG_KSU=y" >> $DEFCONFIG_FILE
@@ -70,11 +71,8 @@ jobs:
         export CC=clang
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
-        # defconfig 로드
-        DEFCONFIG_NAME=$(find arch/arm64/configs/ -name "*gts7l*" -exec basename {} \+)
-        if [ -z "$DEFCONFIG_NAME" ]; then DEFCONFIG_NAME="gts7l_eur_open_defconfig"; fi
-        
-        make $DEFCONFIG_NAME
+        # defconfig 로드 단계를 수동 명시로 안전하게 수정
+        make gts7l_eur_open_defconfig
         
         # 가상 머신 사양에 맞춰 2코어로 안전하게 컴파일 수행
         make -j2
