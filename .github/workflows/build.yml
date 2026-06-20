@@ -12,7 +12,7 @@ jobs:
       run: |
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /usr/local/lib/android
-        sudo opt/ghc
+        sudo rm -rf /opt/ghc
         sudo rm -rf "/usr/local/share/boost"
         df -h
 
@@ -67,15 +67,13 @@ jobs:
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
         # 1단계: 뼈대가 되는 베이스 퀄컴 스냅865 디폴트 빌드 구성 로드 (vendor/ 하위 경로 명시)
-        # 소스 트리 성향에 따라 kona-sec-perf_defconfig 또는 kona_defconfig 사용
         if [ -f "arch/arm64/configs/vendor/kona-sec-perf_defconfig" ]; then
           make vendor/kona-sec-perf_defconfig
         else
           make vendor/kona_defconfig
         fi
         
-        # 2단계: 탭 S7 전용 기기 믹스인 조각 설정을 빌드 트리에 강제 병합 병합
-        # 와이파이 모델 프로필이 있으면 우선 적용하고, 없으면 일반 gts7l 로드
+        # 2단계: 탭 S7 전용 기기 믹스인 조각 설정을 빌드 트리에 강제 병합
         if [ -f "arch/arm64/configs/vendor/samsung/gts7lwifi.config" ]; then
           make vendor/samsung/gts7lwifi.config
         else
